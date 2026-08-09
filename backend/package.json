@@ -1,0 +1,36 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon src/server.js",
+    "start": "node src/server.js",
+    "seed": "node src/marketplace/seed.js",
+    "check": "node --check src/server.js && node --check src/agent/interview.js && node --check src/agent/car-agent.js && node --check src/mcp/marketplace-server.js && node --check src/mcp/booking-server.js && node --check src/mcp/checkout-server.js && node --check src/mcp/clients.js && node --check src/api/session.routes.js && node --check src/api/booking.routes.js",
+    "mcp:marketplace": "node src/mcp/marketplace-server.js",
+    "mcp:booking": "node src/mcp/booking-server.js",
+    "mcp:checkout": "node src/mcp/checkout-server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@langchain/langgraph": "^1.4.9",
+    "@langchain/ollama": "^1.3.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "cors": "^2.8.6",
+    "deepagents": "^1.12.2",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "langchain": "^1.5.5",
+    "mongoose": "^9.9.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14",
+    "vitest": "^4.1.10"
+  }
+}

@@ -1,0 +1,21 @@
+# ignore dependencies
+node_modules/
+
+# ignore env files
+.env
+.env.*
+
+# logs
+*.log
+logs/
+
+# build
+dist/
+build/
+
+# system
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

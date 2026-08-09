@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>ROAM Demo Checkout</title>
+  <style>
+    :root { --coral:#db6f45; --ink:#20302d; --muted:#687771; --line:#cbd6cf; --mint:#e8eee9; }
+    * { box-sizing: border-box; }
+    body { font: 14px/1.5 "Segoe UI", system-ui, sans-serif; color: var(--ink); margin: 0; padding: 20px; background: #fffaf6; }
+    h2 { margin: 0 0 6px; font: 400 24px Georgia, serif; }
+    .notice { padding: 12px 14px; background: var(--mint); color: #40554d; font-size: 13px; margin-bottom: 16px; }
+    .total { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 16px 0; margin: 16px 0; }
+    .total span { color: var(--muted); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+    .total strong { font: 400 28px Georgia, serif; }
+    button { width: 100%; padding: 14px 18px; border: 0; background: var(--coral); color: #fff; font-weight: 700; cursor: pointer; }
+    button:disabled { opacity: .65; cursor: not-allowed; }
+    .badge { display: inline-block; margin-bottom: 12px; padding: 4px 8px; background: #20302d; color: #fff; font-size: 10px; letter-spacing: .12em; }
+    .card { background: #fff; border: 1px dashed var(--line); padding: 14px; margin-bottom: 14px; font-family: monospace; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <span class="badge">MCP APP · CHECKOUT</span>
+  <h2>Demo payment</h2>
+  <p class="notice">No real payment will be processed. This is a safe simulated checkout.</p>
+  <div class="card" id="summary">Booking ready for mock approval.</div>
+  <div class="total"><span>Amount</span><strong>DEMO</strong></div>
+  <button id="approve">Approve mock payment</button>
+  <script>
+    const summary = document.querySelector("#summary");
+    window.addEventListener("message", (event) => {
+      if (event.data?.type !== "mcp_app_init") return;
+      const booking = event.data.data?.booking;
+      if (booking) summary.textContent = `Booking ${booking.bookingId} · ${booking.customer?.name || "Guest"}`;
+    });
+    window.parent.postMessage({ type: "mcp_app_ready", app: "checkout" }, "*");
+    document.querySelector("#approve").addEventListener("click", () => {
+      const button = document.querySelector("#approve");
+      button.disabled = true;
+      window.parent.postMessage({ type: "mcp_app_action", action: "approve_mock_payment" }, "*");
+    });
+  </script>
+</body>
+</html>
