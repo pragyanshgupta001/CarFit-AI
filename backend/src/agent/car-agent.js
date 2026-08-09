@@ -4,6 +4,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createDeepAgent } from "deepagents";
 import { ChatOllama } from "@langchain/ollama";
+import { ChatOpenAI } from "@langchain/openai";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { traceMcpCall, traceTurn } from "../config/telemetry.js";
@@ -18,6 +19,40 @@ const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
 const marketplaceServerPath = path.resolve(currentDirectory, "../mcp/marketplace-server.js");
 
 let mcpClientPromise;
+
+function getAgentModel() {
+  if (process.env.GROQ_API_KEY) {
+    return new ChatOpenAI({
+      apiKey: process.env.GROQ_API_KEY,
+      configuration: { baseURL: "https://api.groq.com/openai/v1" },
+      model: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+      temperature: 0.1,
+    });
+  }
+  if (process.env.OPENAI_API_KEY) {
+    return new ChatOpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+      temperature: 0.1,
+    });
+  }
+  if (process.env.GEMINI_API_KEY) {
+    return new ChatOpenAI({
+      apiKey: process.env.GEMINI_API_KEY,
+      configuration: { baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/" },
+      model: process.env.GEMINI_MODEL || "gemini-2.0-flash",
+      temperature: 0.1,
+    });
+  }
+  if (process.env.ENABLE_OLLAMA === "true" || (!process.env.GROQ_API_KEY && !process.env.OPENAI_API_KEY && !process.env.GEMINI_API_KEY)) {
+    return new ChatOllama({
+      model: process.env.OLLAMA_MODEL || "qwen2.5:7b",
+      baseUrl: process.env.OLLAMA_URL || "http://localhost:11434",
+      temperature: 0.1,
+    });
+  }
+  return null;
+}
 
 async function getMarketplaceClient() {
   if (!mcpClientPromise) {
@@ -128,20 +163,12 @@ export async function runCarAgentTurn(text, preferences, sessionId) {
         const fallback = await interviewTurn(text, capturedPreferences);
         return { ...fallback, preferences: capturedPreferences, recommendations: [], tool: null };
       }
-      if (process.env.ENABLE_OLLAMA !== "true") {
-        const fallback = await interviewTurn(text, capturedPreferences);
-        if (!fallback.complete) return { ...fallback, recommendations: [], tool: null };
-        const searchResult = await callMarketplaceMcp(fallback.preferences);
-        const top = summarizeRecommendations(searchResult.recommendations);
-        return { ...fallback, reply: `I have everything I need. I searched the marketplace and ranked the strongest matches for you.\n\n${top}`, recommendations: searchResult.recommendations || [], tool: "search_listing" };
-      }
 
       try {
-        const model = new ChatOllama({
-          model: process.env.OLLAMA_MODEL || "qwen2.5:7b",
-          baseUrl: process.env.OLLAMA_URL || "http://localhost:11434",
-          temperature: 0.1
-        });
+        const model = getAgentModel();
+        if (!model) {
+          throw new Error("No active LLM provider configured");
+        }
         const agent = createDeepAgent({
           model,
           tools: [searchListingTool],
@@ -172,4 +199,4 @@ export async function runCarAgentTurn(text, preferences, sessionId) {
       }
     }
   );
-}
+}

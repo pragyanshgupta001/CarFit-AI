@@ -155,6 +155,14 @@ Tool integration is strictly decoupled using MCP Servers over Stdio transport.
 
 ## 4. Multistep Agent Elicitation & Scoring Engine
 
+### 4.0 Multi-Provider Model Architecture
+The agent supports a flexible model factory with automatic fallback priority:
+1. **Free Cloud API (Groq)**: `GROQ_API_KEY` (`llama-3.3-70b-versatile`)
+2. **Free Cloud API (Google Gemini)**: `GEMINI_API_KEY` (`gemini-2.0-flash`)
+3. **OpenAI API**: `OPENAI_API_KEY` (`gpt-4o-mini`)
+4. **Local Ollama**: `ENABLE_OLLAMA=true` (`qwen2.5:7b`)
+5. **Deterministic State Machine**: Automatic fallback if no LLM provider or Ollama server is reachable.
+
 ### 4.1 Required Elicitation Slots
 
 The agent interactively captures the following 6 core slots before triggering research:
