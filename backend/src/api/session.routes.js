@@ -93,7 +93,11 @@ router.post("/sessions/:sessionId/messages", async (req, res, next) => {
 
     const currentPreferences =
       session.preferences?.toObject?.() || session.preferences || {};
-    const result = await runCarAgentTurn(req.body.content.trim(), currentPreferences);
+    const result = await runCarAgentTurn(
+      req.body.content.trim(),
+      currentPreferences,
+      session.sessionId
+    );
 
     session.preferences = result.preferences;
     session.messages.push(

@@ -166,7 +166,7 @@ function App() {
       <header className="topbar">
         <div className="brand">
           <CarFront size={24} />
-          <span>ROAM / AI</span>
+          <span>CarFit AI</span>
         </div>
         <span className="live">
           <i /> LOCAL MARKETPLACE
@@ -175,12 +175,12 @@ function App() {
       <section className="intro">
         <div>
           <p className="eyebrow">
-            <Sparkles size={15} /> YOUR PERSONAL CAR MATCHMAKER
+            <Sparkles size={15} /> CARFIT AI - YOUR PERSONAL CAR MATCHMAKER
           </p>
           <h1>
-            Find the car
+            Find the Car
             <br />
-            <em>that fits.</em>
+            <em>that Fits.</em>
           </h1>
           <p className="lede">
             Tell us what your next journey needs. We will search, compare, and
@@ -225,7 +225,7 @@ function App() {
           </button>
         </form>
       </section>
-      {sessionId && (
+      {/* {sessionId && (
         <section className="preference-summary">
           <div className="chat-heading">
             <span>CAPTURED PREFERENCES</span>
@@ -262,7 +262,7 @@ function App() {
             />
           </div>
         </section>
-      )}
+      )} */}
       <A2UIRenderer events={uiEvents} onAction={handleA2UIAction} />
       {bookingBusy && (
         <div className="a2ui-busy">

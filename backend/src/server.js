@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import connectDB from "./config/db.js";
+import { getTelemetryStatus } from "./config/telemetry.js";
 import chatRoutes from "./api/chat.routes.js";
 import bookingRoutes from "./api/booking.routes.js";
 import sessionRoutes from "./api/session.routes.js";
@@ -33,6 +34,7 @@ connectDB();
 
 app.get("/", (req, res) => res.send("API Running..."));
 app.get("/api/health", (req, res) => res.json({ ok: true }));
+app.get("/api/telemetry/status", (req, res) => res.json(getTelemetryStatus()));
 app.use("/api", chatRoutes);
 app.use("/api", bookingRoutes);
 app.use("/api", sessionRoutes);

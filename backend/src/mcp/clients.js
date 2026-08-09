@@ -2,6 +2,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { traceMcpCall } from "../config/telemetry.js";
 
 const directory = path.dirname(fileURLToPath(import.meta.url));
 const clients = new Map();
@@ -27,9 +28,15 @@ function readResult(result) {
 }
 
 export async function createBookingThroughMcp(input) {
-  return readResult(await (await getClient("booking", "booking-server.js")).callTool({ name: "create_booking", arguments: input }));
+  return traceMcpCall("booking", "create_booking", input, async () => {
+    const client = await getClient("booking", "booking-server.js");
+    return readResult(await client.callTool({ name: "create_booking", arguments: input }));
+  });
 }
 
 export async function checkoutThroughMcp(input) {
-  return readResult(await (await getClient("checkout", "checkout-server.js")).callTool({ name: "mock_checkout", arguments: input }));
+  return traceMcpCall("checkout", "mock_checkout", input, async () => {
+    const client = await getClient("checkout", "checkout-server.js");
+    return readResult(await client.callTool({ name: "mock_checkout", arguments: input }));
+  });
 }

@@ -6,6 +6,7 @@ import { createDeepAgent } from "deepagents";
 import { ChatOllama } from "@langchain/ollama";
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
+import { traceMcpCall, traceTurn } from "../config/telemetry.js";
 import {
   extractPreferences,
   interviewTurn,
@@ -48,10 +49,12 @@ function parseToolResult(result) {
 }
 
 async function callMarketplaceMcp(preferences) {
-  const client = await getMarketplaceClient();
-  const toolResult = await client.callTool({ name: "search_listing", arguments: preferences });
-  if (toolResult.isError) throw new Error("The marketplace MCP search failed");
-  return parseToolResult(toolResult);
+  return traceMcpCall("marketplace", "search_listing", preferences, async () => {
+    const client = await getMarketplaceClient();
+    const toolResult = await client.callTool({ name: "search_listing", arguments: preferences });
+    if (toolResult.isError) throw new Error("The marketplace MCP search failed");
+    return parseToolResult(toolResult);
+  });
 }
 
 const searchListingTool = tool(
@@ -112,55 +115,61 @@ function sanitizeReply(text) {
     .replace(/\b(usd|\$)\s*(\d[\d,]*)/gi, (_, __, number) => `₹${number.replace(/,/g, "")}`);
 }
 
-export async function runCarAgentTurn(text, preferences) {
+export async function runCarAgentTurn(text, preferences, sessionId) {
   const capturedPreferences = normalizePreferences(
     extractPreferences(text, preferences)
   );
   const requiredFieldsMissing = missingFields(capturedPreferences);
-  if (requiredFieldsMissing.length > 0) {
-    const fallback = await interviewTurn(text, capturedPreferences);
-    return { ...fallback, preferences: capturedPreferences, recommendations: [], tool: null };
-  }
-  if (process.env.ENABLE_OLLAMA !== "true") {
-    const fallback = await interviewTurn(text, capturedPreferences);
-    if (!fallback.complete) return { ...fallback, recommendations: [], tool: null };
-    const searchResult = await callMarketplaceMcp(fallback.preferences);
-    const top = summarizeRecommendations(searchResult.recommendations);
-    return { ...fallback, reply: `I have everything I need. I searched the marketplace and ranked the strongest matches for you.\n\n${top}`, recommendations: searchResult.recommendations || [], tool: "search_listing" };
-  }
 
-  try {
-    const model = new ChatOllama({
-      model: process.env.OLLAMA_MODEL || "qwen2.5:7b",
-      baseUrl: process.env.OLLAMA_URL || "http://localhost:11434",
-      temperature: 0.1
-    });
-    const agent = createDeepAgent({
-      model,
-      tools: [searchListingTool],
-      systemPrompt: `You are ROAM, a car rental and buying agent. Interview the user conversationally and collect these required fields: transactionType (rent or buy), location, category, maxBudget, startDate, endDate, passengers. Current captured preferences: ${JSON.stringify(capturedPreferences)}. Missing fields: ${JSON.stringify(requiredFieldsMissing)}. Ask exactly one concise question for the first missing field. When all fields are available, you MUST call search_listing with the complete preferences, then summarize the ranked results and their reasons. Never invent listing facts. IMPORTANT: All prices are in Indian rupees (INR). Always write amounts in the form "₹2,400/day" or "₹15,00,000". Never output a "$" symbol and never put a "?" character directly before a number.`
-    });
-    const result = await agent.invoke({ messages: [{ role: "user", content: requiredFieldsMissing.length ? text : `${text}\n\nSYSTEM: All required fields are already complete. Do not ask about optional fuel or features. Immediately call the search_listing tool using this exact complete preference object: ${JSON.stringify(capturedPreferences)}` }] });
-    const recommendations = extractRecommendations(result.messages || []);
-    const complete = requiredFieldsMissing.length === 0;
-    if (complete && !recommendations.length) {
-      const searchResult = await callMarketplaceMcp(capturedPreferences);
-      const top = summarizeRecommendations(searchResult.recommendations);
-      return { preferences: capturedPreferences, complete: true, reply: `I searched the marketplace and ranked the strongest matches for you.\n\n${top}`, recommendations: searchResult.recommendations || [], tool: "search_listing" };
+  return traceTurn(
+    { sessionId, text, preferences: capturedPreferences, missingFields: requiredFieldsMissing },
+    async () => {
+      if (requiredFieldsMissing.length > 0) {
+        const fallback = await interviewTurn(text, capturedPreferences);
+        return { ...fallback, preferences: capturedPreferences, recommendations: [], tool: null };
+      }
+      if (process.env.ENABLE_OLLAMA !== "true") {
+        const fallback = await interviewTurn(text, capturedPreferences);
+        if (!fallback.complete) return { ...fallback, recommendations: [], tool: null };
+        const searchResult = await callMarketplaceMcp(fallback.preferences);
+        const top = summarizeRecommendations(searchResult.recommendations);
+        return { ...fallback, reply: `I have everything I need. I searched the marketplace and ranked the strongest matches for you.\n\n${top}`, recommendations: searchResult.recommendations || [], tool: "search_listing" };
+      }
+
+      try {
+        const model = new ChatOllama({
+          model: process.env.OLLAMA_MODEL || "qwen2.5:7b",
+          baseUrl: process.env.OLLAMA_URL || "http://localhost:11434",
+          temperature: 0.1
+        });
+        const agent = createDeepAgent({
+          model,
+          tools: [searchListingTool],
+          systemPrompt: `You are ROAM, a car rental and buying agent. Interview the user conversationally and collect these required fields: transactionType (rent or buy), location, category, maxBudget, startDate, endDate, passengers. Current captured preferences: ${JSON.stringify(capturedPreferences)}. Missing fields: ${JSON.stringify(requiredFieldsMissing)}. Ask exactly one concise question for the first missing field. When all fields are available, you MUST call search_listing with the complete preferences, then summarize the ranked results and their reasons. Never invent listing facts. IMPORTANT: All prices are in Indian rupees (INR). Always write amounts in the form "₹2,400/day" or "₹15,00,000". Never output a "$" symbol and never put a "?" character directly before a number.`
+        });
+        const result = await agent.invoke({ messages: [{ role: "user", content: requiredFieldsMissing.length ? text : `${text}\n\nSYSTEM: All required fields are already complete. Do not ask about optional fuel or features. Immediately call the search_listing tool using this exact complete preference object: ${JSON.stringify(capturedPreferences)}` }] });
+        const recommendations = extractRecommendations(result.messages || []);
+        const complete = requiredFieldsMissing.length === 0;
+        if (complete && !recommendations.length) {
+          const searchResult = await callMarketplaceMcp(capturedPreferences);
+          const top = summarizeRecommendations(searchResult.recommendations);
+          return { preferences: capturedPreferences, complete: true, reply: `I searched the marketplace and ranked the strongest matches for you.\n\n${top}`, recommendations: searchResult.recommendations || [], tool: "search_listing" };
+        }
+        return {
+          preferences: capturedPreferences,
+          complete,
+          reply: lastAgentText(result.messages || []),
+          recommendations,
+          tool: complete ? "search_listing" : null
+        };
+      } catch (error) {
+        console.warn(`DeepAgent unavailable, using fallback interviewer: ${error.message}`);
+        const fallback = await interviewTurn(text, capturedPreferences);
+        if (!fallback.complete) return { ...fallback, recommendations: [], tool: null };
+        const searchResult = await callMarketplaceMcp(fallback.preferences);
+        const top = summarizeRecommendations(searchResult.recommendations);
+        return { ...fallback, reply: `${fallback.reply}\n\n${top}`, recommendations: searchResult.recommendations || [], tool: "search_listing" };
+      }
     }
-    return {
-      preferences: capturedPreferences,
-      complete,
-      reply: lastAgentText(result.messages || []),
-      recommendations,
-      tool: complete ? "search_listing" : null
-    };
-  } catch (error) {
-    console.warn(`DeepAgent unavailable, using fallback interviewer: ${error.message}`);
-    const fallback = await interviewTurn(text, capturedPreferences);
-    if (!fallback.complete) return { ...fallback, recommendations: [], tool: null };
-    const searchResult = await callMarketplaceMcp(fallback.preferences);
-    const top = summarizeRecommendations(searchResult.recommendations);
-    return { ...fallback, reply: `${fallback.reply}\n\n${top}`, recommendations: searchResult.recommendations || [], tool: "search_listing" };
-  }
+  );
 }
