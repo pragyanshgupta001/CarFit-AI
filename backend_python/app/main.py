@@ -2,6 +2,8 @@
 
 Creates the FastAPI application instance, registers CORS middleware,
 exception handlers, lifespan events, and the /api/health route.
+
+Lifespan now connects to MongoDB on startup and closes on shutdown.
 """
 
 from contextlib import asynccontextmanager
@@ -11,6 +13,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.db.connection import close_db, connect_db
+from app.db.init import init_db
 from app.handlers import register_exception_handlers
 from app.logging import configure_logging
 
@@ -19,10 +23,15 @@ from app.logging import configure_logging
 async def lifespan(app: FastAPI):
     """Application lifespan handler.
 
-    Startup: no MongoDB connection yet (deferred to Phase 3).
-    Shutdown: nothing to clean up yet.
+    Startup: connect to MongoDB and verify indexes.
+    Shutdown: close MongoDB connection.
     """
-    yield
+    await connect_db()
+    await init_db()
+    try:
+        yield
+    finally:
+        await close_db()
 
 
 def create_app() -> FastAPI:
